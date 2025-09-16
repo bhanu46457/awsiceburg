@@ -12,7 +12,6 @@ With AWS Glue 5.0's native support for Apache Iceberg 1.7.1, organizations can a
 - **Python 3.11 and Java 17** for latest language features and optimizations
 - **Advanced Iceberg 1.7.1 features** including branching, tagging, and enhanced metadata management
 - **Fine-grained access control** integration with AWS Lake Formation
-- **SageMaker Unified Studio** integration for ML workflows
 - **Zero-downtime schema evolution** and time travel capabilities
 - **ACID transaction guarantees** at petabyte scale with improved isolation levels
 
@@ -20,16 +19,16 @@ With AWS Glue 5.0's native support for Apache Iceberg 1.7.1, organizations can a
 Everthing under this is related to aws glue s3 athena, I need to implement on aws
 1. [Apache Iceberg Fundamentals & Architecture](#1-apache-iceberg-fundamentals--architecture)
 2. [Apache Iceberg- AWS Glue Integration Architecture](#2-aws-glue-integration-architecture)
-3. [Apache Iceberg- AWS Glue s3 Performance Optimization Strategies](#3-performance-optimization-strategies)
-4. [Apache Iceberg- AWS Glue s3 Storage & Cost Optimization](#4-storage--cost-optimization)
-5. [Apache Iceberg- AWS Glue s3 Write Patterns & Isolation Levels](#5-write-patterns--isolation-levels)
-6. [Apache Iceberg- AWS Glue s3 Monitoring & Observability](#6-monitoring--observability)
-7. [Apache Iceberg- AWS Glue s3 Security & Governance](#7-security--governance)
-8. [Apache Iceberg- AWS Glue s3 Operational Considerations](#8-operational-considerations)
-9. [Apache Iceberg- AWS Glue s3 Migration Strategies](#9-migration-strategies)
-10. [Apache Iceberg- AWS Glue s3 Troubleshooting Guide](#10-troubleshooting-guide)
-11. [Apache Iceberg- AWS Glue s3 Performance Benchmarks](#11-performance-benchmarks)
-12. [Apache Iceberg- AWS Glue s3 Real-World Implementation Case Studies](#12-real-world-implementation-case-studies)
+3. [Performance Optimization Strategies](#3-performance-optimization-strategies)
+4. [Storage & Cost Optimization](#4-storage--cost-optimization)
+5. [Write Patterns & Isolation Levels](#5-write-patterns--isolation-levels)
+6. [Monitoring & Observability](#6-monitoring--observability)
+7. [Security & Governance](#7-security--governance)
+8. [Operational Considerations](#8-operational-considerations)
+9. [Migration Strategies](#9-migration-strategies)
+10. [Troubleshooting Guide](#10-troubleshooting-guide)
+11. [Performance Benchmarks](#11-performance-benchmarks)
+12. [Real-World Implementation Case Studies](#12-real-world-implementation-case-studies)
 
 ## 1. Apache Iceberg Fundamentals & Architecture
 
@@ -361,97 +360,6 @@ spark_config = {
 }
 ```
 
-### SageMaker Integration Architecture
-
-#### SageMaker Unified Studio Integration
-**Development Environment Setup:**
-```python
-# SageMaker Studio integration for Iceberg development
-import boto3
-import sagemaker
-from sagemaker.spark.processing import PySparkProcessor
-
-# Initialize SageMaker session
-sagemaker_session = sagemaker.Session()
-role = "arn:aws:iam::account:role/SageMakerExecutionRole"
-
-# Create Spark processor for Iceberg workloads
-spark_processor = PySparkProcessor(
-    base_job_name="iceberg-sagemaker-processing",
-    framework_version="3.5.4",
-    py_version="py311",
-    role=role,
-    instance_count=2,
-    instance_type="ml.m5.xlarge",
-    max_runtime_in_seconds=3600,
-    sagemaker_session=sagemaker_session,
-    env={
-        "SPARK_CONF_DIR": "/opt/ml/processing/conf",
-        "PYTHONPATH": "/opt/ml/processing/code"
-    }
-)
-
-# Processing job configuration
-processing_inputs = [
-    {
-        "InputName": "iceberg-data",
-        "S3Input": {
-            "S3Uri": "s3://my-data-lake/raw-data/",
-            "LocalPath": "/opt/ml/processing/input",
-            "S3DataType": "S3Prefix",
-            "S3InputMode": "File"
-        }
-    }
-]
-
-processing_outputs = [
-    {
-        "OutputName": "processed-data",
-        "S3Output": {
-            "S3Uri": "s3://my-data-lake/processed-data/",
-            "LocalPath": "/opt/ml/processing/output",
-            "S3UploadMode": "EndOfJob"
-        }
-    }
-]
-```
-
-**Lakehouse Integration:**
-```python
-# Unified access to S3 data lakes and Redshift data warehouses
-from sagemaker.feature_store.feature_group import FeatureGroup
-from sagemaker.feature_store.feature_definition import FeatureDefinition, FeatureTypeEnum
-
-# Create feature group with Iceberg backend
-feature_group = FeatureGroup(
-    name="customer-features",
-    sagemaker_session=sagemaker_session,
-    role_arn=role
-)
-
-# Define features with Iceberg schema
-feature_definitions = [
-    FeatureDefinition(feature_name="customer_id", feature_type=FeatureTypeEnum.STRING),
-    FeatureDefinition(feature_name="total_purchases", feature_type=FeatureTypeEnum.FRACTIONAL),
-    FeatureDefinition(feature_name="last_purchase_date", feature_type=FeatureTypeEnum.STRING),
-    FeatureDefinition(feature_name="customer_segment", feature_type=FeatureTypeEnum.STRING)
-]
-
-feature_group.feature_definitions = feature_definitions
-feature_group.create(
-    s3_uri="s3://my-feature-store/",
-    record_identifier_name="customer_id",
-    event_time_feature_name="last_purchase_date",
-    enable_online_store=True,
-    offline_store_config={
-        "S3StorageConfig": {
-            "S3Uri": "s3://my-feature-store/offline-store/",
-            "ResolvedOutputS3Uri": "s3://my-feature-store/resolved-output/"
-        },
-        "TableFormat": "Iceberg"
-    }
-)
-```
 
 ### Advanced Integration Patterns
 
@@ -4580,296 +4488,8 @@ This comprehensive security and governance framework provides the foundation for
 
 ## 8. Apache Iceberg - AWS Glue S3 Operational Considerations
 
-Operational considerations for AWS Glue 5.0 with Apache Iceberg 1.7.1 encompass the day-to-day management, maintenance, and optimization of production data lake environments. This section provides comprehensive strategies for operational excellence, including SageMaker integration, dependency management, automation, and best practices for sustainable operations.
+Operational considerations for AWS Glue 5.0 with Apache Iceberg 1.7.1 encompass the day-to-day management, maintenance, and optimization of production data lake environments. This section provides comprehensive strategies for operational excellence, including dependency management, automation, and best practices for sustainable operations.
 
-### SageMaker Integration and ML Operations
-
-#### SageMaker Unified Studio Integration
-**Comprehensive SageMaker Integration Framework:**
-```python
-# Comprehensive SageMaker integration for Iceberg data operations
-import boto3
-import sagemaker
-from sagemaker.spark.processing import PySparkProcessor
-from sagemaker.feature_store.feature_group import FeatureGroup
-from sagemaker.feature_store.feature_definition import FeatureDefinition, FeatureTypeEnum
-
-class IcebergSageMakerIntegration:
-    def __init__(self, role_arn, sagemaker_session=None):
-        self.role_arn = role_arn
-        self.sagemaker_session = sagemaker_session or sagemaker.Session()
-        self.feature_groups = {}
-        self.processing_jobs = {}
-    
-    def create_spark_processor(self, job_name, instance_type="ml.m5.xlarge", 
-                             instance_count=2, framework_version="3.5.4"):
-        """
-        Create SageMaker Spark processor for Iceberg operations
-        """
-        processor = PySparkProcessor(
-            base_job_name=job_name,
-            framework_version=framework_version,
-            py_version="py311",
-            role=self.role_arn,
-            instance_count=instance_count,
-            instance_type=instance_type,
-            max_runtime_in_seconds=3600,
-            sagemaker_session=self.sagemaker_session,
-            env={
-                "SPARK_CONF_DIR": "/opt/ml/processing/conf",
-                "PYTHONPATH": "/opt/ml/processing/code",
-                "AWS_DEFAULT_REGION": "us-west-2"
-            }
-        )
-        
-        self.processing_jobs[job_name] = processor
-        return processor
-    
-    def create_feature_group_with_iceberg(self, feature_group_name, feature_definitions, 
-                                        s3_uri, record_identifier_name, event_time_feature_name):
-        """
-        Create SageMaker Feature Group with Iceberg backend
-        """
-        feature_group = FeatureGroup(
-            name=feature_group_name,
-            sagemaker_session=self.sagemaker_session,
-            role_arn=self.role_arn
-        )
-        
-        feature_group.feature_definitions = feature_definitions
-        
-        # Create feature group with Iceberg offline store
-        feature_group.create(
-            s3_uri=s3_uri,
-            record_identifier_name=record_identifier_name,
-            event_time_feature_name=event_time_feature_name,
-            enable_online_store=True,
-            offline_store_config={
-                "S3StorageConfig": {
-                    "S3Uri": f"{s3_uri}/offline-store/",
-                    "ResolvedOutputS3Uri": f"{s3_uri}/resolved-output/"
-                },
-                "TableFormat": "Iceberg"
-            }
-        )
-        
-        self.feature_groups[feature_group_name] = feature_group
-        return feature_group
-    
-    def run_iceberg_processing_job(self, processor, input_data, output_data, 
-                                 processing_script, job_name):
-        """
-        Run Iceberg processing job with SageMaker
-        """
-        # Configure processing inputs
-        processing_inputs = []
-        for input_name, input_config in input_data.items():
-            processing_inputs.append({
-                "InputName": input_name,
-                "S3Input": {
-                    "S3Uri": input_config["s3_uri"],
-                    "LocalPath": input_config["local_path"],
-                    "S3DataType": "S3Prefix",
-                    "S3InputMode": "File"
-                }
-            })
-        
-        # Configure processing outputs
-        processing_outputs = []
-        for output_name, output_config in output_data.items():
-            processing_outputs.append({
-                "OutputName": output_name,
-                "S3Output": {
-                    "S3Uri": output_config["s3_uri"],
-                    "LocalPath": output_config["local_path"],
-                    "S3UploadMode": "EndOfJob"
-                }
-            })
-        
-        # Run processing job
-        processor.run(
-            submit_app=processing_script,
-            inputs=processing_inputs,
-            outputs=processing_outputs,
-            arguments=[
-                "--job-name", job_name,
-                "--input-data", json.dumps(input_data),
-                "--output-data", json.dumps(output_data)
-            ],
-            wait=True,
-            logs=True
-        )
-        
-        return processor.latest_job
-    
-    def create_ml_pipeline_with_iceberg(self, pipeline_name, pipeline_config):
-        """
-        Create ML pipeline that integrates with Iceberg data
-        """
-        pipeline_steps = []
-        
-        # Data processing step
-        if "data_processing" in pipeline_config:
-            processing_step = self._create_processing_step(
-                pipeline_config["data_processing"]
-            )
-            pipeline_steps.append(processing_step)
-        
-        # Feature engineering step
-        if "feature_engineering" in pipeline_config:
-            feature_step = self._create_feature_engineering_step(
-                pipeline_config["feature_engineering"]
-            )
-            pipeline_steps.append(feature_step)
-        
-        # Model training step
-        if "model_training" in pipeline_config:
-            training_step = self._create_training_step(
-                pipeline_config["model_training"]
-            )
-            pipeline_steps.append(training_step)
-        
-        # Model evaluation step
-        if "model_evaluation" in pipeline_config:
-            evaluation_step = self._create_evaluation_step(
-                pipeline_config["model_evaluation"]
-            )
-            pipeline_steps.append(evaluation_step)
-        
-        # Create and return pipeline
-        pipeline = self._create_sagemaker_pipeline(pipeline_name, pipeline_steps)
-        return pipeline
-    
-    def _create_processing_step(self, processing_config):
-        """
-        Create data processing step for ML pipeline
-        """
-        # This would create a SageMaker processing step
-        # For now, return placeholder
-        return {
-            "step_name": "data_processing",
-            "step_type": "processing",
-            "config": processing_config
-        }
-    
-    def _create_feature_engineering_step(self, feature_config):
-        """
-        Create feature engineering step for ML pipeline
-        """
-        return {
-            "step_name": "feature_engineering",
-            "step_type": "feature_engineering",
-            "config": feature_config
-        }
-    
-    def _create_training_step(self, training_config):
-        """
-        Create model training step for ML pipeline
-        """
-        return {
-            "step_name": "model_training",
-            "step_type": "training",
-            "config": training_config
-        }
-    
-    def _create_evaluation_step(self, evaluation_config):
-        """
-        Create model evaluation step for ML pipeline
-        """
-        return {
-            "step_name": "model_evaluation",
-            "step_type": "evaluation",
-            "config": evaluation_config
-        }
-    
-    def _create_sagemaker_pipeline(self, pipeline_name, steps):
-        """
-        Create SageMaker pipeline with specified steps
-        """
-        # This would create an actual SageMaker pipeline
-        # For now, return pipeline configuration
-        return {
-            "pipeline_name": pipeline_name,
-            "steps": steps,
-            "created_at": datetime.utcnow().isoformat()
-        }
-    
-    def monitor_ml_operations(self, pipeline_name=None):
-        """
-        Monitor ML operations and performance
-        """
-        monitoring_data = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "feature_groups": len(self.feature_groups),
-            "processing_jobs": len(self.processing_jobs),
-            "pipeline_status": "ACTIVE"
-        }
-        
-        # Get processing job statuses
-        for job_name, processor in self.processing_jobs.items():
-            try:
-                latest_job = processor.latest_job
-                monitoring_data[f"job_{job_name}_status"] = latest_job.describe()["ProcessingJobStatus"]
-            except:
-                monitoring_data[f"job_{job_name}_status"] = "UNKNOWN"
-        
-        return monitoring_data
-
-# Usage example
-sagemaker_integration = IcebergSageMakerIntegration(
-    role_arn="arn:aws:iam::123456789012:role/SageMakerExecutionRole"
-)
-
-# Create Spark processor
-processor = sagemaker_integration.create_spark_processor(
-    job_name="iceberg-data-processing",
-    instance_type="ml.m5.2xlarge",
-    instance_count=3
-)
-
-# Create feature group with Iceberg backend
-feature_definitions = [
-    FeatureDefinition(feature_name="customer_id", feature_type=FeatureTypeEnum.STRING),
-    FeatureDefinition(feature_name="total_purchases", feature_type=FeatureTypeEnum.FRACTIONAL),
-    FeatureDefinition(feature_name="last_purchase_date", feature_type=FeatureTypeEnum.STRING),
-    FeatureDefinition(feature_name="customer_segment", feature_type=FeatureTypeEnum.STRING)
-]
-
-feature_group = sagemaker_integration.create_feature_group_with_iceberg(
-    feature_group_name="customer-features",
-    feature_definitions=feature_definitions,
-    s3_uri="s3://my-feature-store/",
-    record_identifier_name="customer_id",
-    event_time_feature_name="last_purchase_date"
-)
-
-# Run processing job
-input_data = {
-    "iceberg_data": {
-        "s3_uri": "s3://my-data-lake/warehouse/analytics/sales_data/",
-        "local_path": "/opt/ml/processing/input"
-    }
-}
-
-output_data = {
-    "processed_data": {
-        "s3_uri": "s3://my-data-lake/processed/features/",
-        "local_path": "/opt/ml/processing/output"
-    }
-}
-
-processing_job = sagemaker_integration.run_iceberg_processing_job(
-    processor=processor,
-    input_data=input_data,
-    output_data=output_data,
-    processing_script="s3://my-scripts/iceberg-feature-engineering.py",
-    job_name="feature-engineering-job"
-)
-
-# Monitor operations
-monitoring_data = sagemaker_integration.monitor_ml_operations()
-print(f"ML operations monitoring: {monitoring_data}")
-```
 
 ### Dependency Management and Requirements
 
@@ -8654,7 +8274,6 @@ class ECommerceCaseStudy:
                 "storage_strategy": {
                     "raw_data": "S3 with lifecycle policies",
                     "processed_data": "Iceberg tables with partitioning",
-                    "feature_store": "SageMaker Feature Store",
                     "data_archival": "S3 Glacier for historical data"
                 }
             },
@@ -9301,7 +8920,6 @@ The solution addresses critical enterprise requirements:
 #### Phase 3: Advanced Features (Weeks 15-22)
 - Implement advanced Iceberg features (branching, tagging)
 - Optimize performance and cost
-- Integrate with ML/AI workflows
 - Develop disaster recovery and backup procedures
 
 #### Phase 4: Production Deployment (Weeks 23-26)
@@ -9344,7 +8962,7 @@ The solution addresses critical enterprise requirements:
 #### Business Impact
 - **Data-Driven Decisions**: Enhanced ability to make data-driven business decisions
 - **Operational Efficiency**: Improved operational efficiency and cost optimization
-- **Innovation Enablement**: Foundation for advanced analytics and AI/ML initiatives
+- **Innovation Enablement**: Foundation for advanced analytics initiatives
 - **Competitive Advantage**: Strategic advantage through superior data capabilities
 
 ### Final Recommendations
