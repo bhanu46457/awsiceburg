@@ -630,8 +630,8 @@ def main():
     """Main function"""
     try:
         # Get job parameters
-        args = getResolvedOptions(sys.argv, ['config-s3-path'])
-        config_s3_path = args['config-s3-path']
+        args = getResolvedOptions(sys.argv, ['config_s3_path'])
+        config_s3_path = args['config_s3_path']
         
         print(f"Loading configuration from: {config_s3_path}")
         config = load_config_from_s3(config_s3_path)
