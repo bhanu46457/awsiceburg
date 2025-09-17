@@ -45,11 +45,43 @@ def load_config_from_s3(s3_path: str) -> dict:
     config_content = response['Body'].read().decode('utf-8')
     return json.loads(config_content)
 
+def validate_optimizer_configuration(iceberg_settings: dict) -> bool:
+    """
+    Validate the optimizer configuration parameters
+    """
+    print("Validating optimizer configuration...")
+    
+    # Validate run rate hours (must be between 3 and 168)
+    run_rate_hours = iceberg_settings.get('retention_run_rate_hours', 24)
+    if not (3 <= run_rate_hours <= 168):
+        print(f"❌ Invalid retention_run_rate_hours: {run_rate_hours}. Must be between 3 and 168 hours.")
+        return False
+    
+    orphan_run_rate_hours = iceberg_settings.get('orphan_file_run_rate_hours', 24)
+    if not (3 <= orphan_run_rate_hours <= 168):
+        print(f"❌ Invalid orphan_file_run_rate_hours: {orphan_run_rate_hours}. Must be between 3 and 168 hours.")
+        return False
+    
+    # Validate compaction strategy
+    valid_strategies = ['binpack', 'sort', 'z-order']
+    strategy = iceberg_settings.get('compaction_strategy', 'binpack')
+    if strategy not in valid_strategies:
+        print(f"❌ Invalid compaction_strategy: {strategy}. Must be one of: {valid_strategies}")
+        return False
+    
+    print("✅ Configuration validation passed")
+    return True
+
 def enable_table_optimizations(database_name: str, table_name: str, iceberg_settings: dict):
     """
     Enable table optimizations using the create_table_optimizer API for the latest Glue implementation
     """
     print(f"Enabling table optimizations for {database_name}.{table_name}")
+    
+    # Validate configuration first
+    if not validate_optimizer_configuration(iceberg_settings):
+        print("❌ Configuration validation failed. Skipping optimizer creation.")
+        return False
     
     try:
         # Get the catalog ID (account ID)
@@ -76,21 +108,26 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
                 'enabled': True,
                 'roleArn': role_arn,
                 'compactionConfiguration': {
-                    'strategy': iceberg_settings.get('compaction_strategy', 'binpack'),
-                    'minInputFiles': iceberg_settings.get('compaction_min_file_count', 5),
-                    'targetFileSizeBytes': iceberg_settings.get('compaction_target_size', 512) * 1024 * 1024,
-                    'maxFileSizeBytes': iceberg_settings.get('compaction_max_file_size', 1024) * 1024 * 1024,
-                    'rewriteAllFiles': iceberg_settings.get('compaction_rewrite_all', False),
-                    'rewriteDeleteFiles': iceberg_settings.get('compaction_rewrite_delete_files', True)
+                    'icebergConfiguration': {
+                        'strategy': iceberg_settings.get('compaction_strategy', 'binpack'),
+                        'minInputFiles': iceberg_settings.get('compaction_min_file_count', 100),
+                        'deleteFileThreshold': iceberg_settings.get('compaction_delete_file_threshold', 1)
+                    }
                 }
             }
+            
+            # Add VPC configuration if specified
+            if iceberg_settings.get('vpc_connection_name'):
+                compaction_config['vpcConfiguration'] = {
+                    'glueConnectionName': iceberg_settings.get('vpc_connection_name')
+                }
             
             try:
                 response = glue_client.create_table_optimizer(
                     CatalogId=catalog_id,
                     DatabaseName=database_name,
                     TableName=table_name,
-                    Type='COMPACTION',
+                    Type='compaction',
                     TableOptimizerConfiguration=compaction_config
                 )
                 optimizers_created.append('COMPACTION')
@@ -104,17 +141,27 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
             'enabled': True,
             'roleArn': role_arn,
             'retentionConfiguration': {
-                'retentionDays': iceberg_settings.get('snapshot_retention_days', 7),
-                'maxSnapshots': 100
+                'icebergConfiguration': {
+                    'snapshotRetentionPeriodInDays': iceberg_settings.get('snapshot_retention_days', 5),
+                    'numberOfSnapshotsToRetain': iceberg_settings.get('number_of_snapshots_to_retain', 1),
+                    'cleanExpiredFiles': iceberg_settings.get('clean_expired_files', True),
+                    'runRateInHours': iceberg_settings.get('retention_run_rate_hours', 24)
+                }
             }
         }
+        
+        # Add VPC configuration if specified
+        if iceberg_settings.get('vpc_connection_name'):
+            retention_config['vpcConfiguration'] = {
+                'glueConnectionName': iceberg_settings.get('vpc_connection_name')
+            }
         
         try:
             response = glue_client.create_table_optimizer(
                 CatalogId=catalog_id,
                 DatabaseName=database_name,
                 TableName=table_name,
-                Type='RETENTION',
+                Type='retention',
                 TableOptimizerConfiguration=retention_config
             )
             optimizers_created.append('RETENTION')
@@ -124,21 +171,37 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
         
         # Enable Orphan File Deletion Optimization
         print("Creating orphan file deletion optimizer...")
+        # Build orphan file deletion configuration
+        orphan_file_config = {
+            'orphanFileRetentionPeriodInDays': iceberg_settings.get('orphan_file_retention_days', 3),
+            'runRateInHours': iceberg_settings.get('orphan_file_run_rate_hours', 24)
+        }
+        
+        # Only add location if specified (optional parameter)
+        orphan_file_location = iceberg_settings.get('orphan_file_location', '')
+        if orphan_file_location:
+            orphan_file_config['location'] = orphan_file_location
+        
         orphan_file_deletion_config = {
             'enabled': True,
             'roleArn': role_arn,
             'orphanFileDeletionConfiguration': {
-                'retentionDays': iceberg_settings.get('orphan_file_retention_days', 7),
-                'maxFileAgeDays': 30
+                'icebergConfiguration': orphan_file_config
             }
         }
+        
+        # Add VPC configuration if specified
+        if iceberg_settings.get('vpc_connection_name'):
+            orphan_file_deletion_config['vpcConfiguration'] = {
+                'glueConnectionName': iceberg_settings.get('vpc_connection_name')
+            }
         
         try:
             response = glue_client.create_table_optimizer(
                 CatalogId=catalog_id,
                 DatabaseName=database_name,
                 TableName=table_name,
-                Type='ORPHAN_FILE_DELETION',
+                Type='orphan_file_deletion',
                 TableOptimizerConfiguration=orphan_file_deletion_config
             )
             optimizers_created.append('ORPHAN_FILE_DELETION')
@@ -147,6 +210,24 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
             print(f"❌ Failed to create orphan file deletion optimizer: {str(e)}")
         
         print(f"Successfully created {len(optimizers_created)} optimizers: {', '.join(optimizers_created)}")
+        
+        # Log configuration summary
+        print("\n" + "="*50)
+        print("OPTIMIZER CONFIGURATION SUMMARY")
+        print("="*50)
+        print(f"Compaction Strategy: {iceberg_settings.get('compaction_strategy', 'binpack')}")
+        print(f"Min Input Files: {iceberg_settings.get('compaction_min_file_count', 100)}")
+        print(f"Delete File Threshold: {iceberg_settings.get('compaction_delete_file_threshold', 1)}")
+        print(f"Snapshot Retention Days: {iceberg_settings.get('snapshot_retention_days', 5)}")
+        print(f"Number of Snapshots to Retain: {iceberg_settings.get('number_of_snapshots_to_retain', 1)}")
+        print(f"Clean Expired Files: {iceberg_settings.get('clean_expired_files', True)}")
+        print(f"Retention Run Rate (hours): {iceberg_settings.get('retention_run_rate_hours', 24)}")
+        print(f"Orphan File Retention Days: {iceberg_settings.get('orphan_file_retention_days', 3)}")
+        print(f"Orphan File Run Rate (hours): {iceberg_settings.get('orphan_file_run_rate_hours', 24)}")
+        if iceberg_settings.get('vpc_connection_name'):
+            print(f"VPC Connection: {iceberg_settings.get('vpc_connection_name')}")
+        print("="*50)
+        
         return len(optimizers_created) > 0
         
     except Exception as e:
@@ -164,7 +245,7 @@ def verify_optimization_status(database_name: str, table_name: str):
         catalog_id = sts_client.get_caller_identity()['Account']
         
         # Check each optimizer type individually since list_table_optimizers doesn't exist
-        optimizer_types = ['COMPACTION', 'RETENTION', 'ORPHAN_FILE_DELETION']
+        optimizer_types = ['compaction', 'retention', 'orphan_file_deletion']
         optimizer_status = {}
         
         print("Table Optimizers Status:")
@@ -214,7 +295,7 @@ def monitor_optimization_jobs(database_name: str, table_name: str):
         catalog_id = sts_client.get_caller_identity()['Account']
         
         # Check each optimizer type individually
-        optimizer_types = ['COMPACTION', 'RETENTION', 'ORPHAN_FILE_DELETION']
+        optimizer_types = ['compaction', 'retention', 'orphan_file_deletion']
         found_optimizers = []
         
         print(f"Checking {len(optimizer_types)} optimizer types:")
@@ -262,7 +343,7 @@ def check_existing_optimizers(database_name: str, table_name: str):
         catalog_id = sts_client.get_caller_identity()['Account']
         
         # Check each optimizer type individually since list_table_optimizers doesn't exist
-        optimizer_types = ['COMPACTION', 'RETENTION', 'ORPHAN_FILE_DELETION']
+        optimizer_types = ['compaction', 'retention', 'orphan_file_deletion']
         existing_optimizers = []
         
         for optimizer_type in optimizer_types:
