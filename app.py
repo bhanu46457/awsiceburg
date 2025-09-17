@@ -894,6 +894,15 @@ def step5_iceberg_settings(migrator):
             value=7,
             help="Number of days to retain snapshots"
         )
+        
+        # Orphan file retention
+        orphan_file_retention_days = st.number_input(
+            "Orphan File Retention (Days)",
+            min_value=1,
+            max_value=365,
+            value=7,
+            help="Number of days to retain orphan files before deletion"
+        )
     
     # Additional settings
     st.markdown("#### 🎛️ Additional Configuration")
@@ -1001,6 +1010,7 @@ def step5_iceberg_settings(migrator):
         'compaction_rewrite_delete_files': compaction_rewrite_delete_files,
         'history_retention_days': history_retention_days,
         'snapshot_retention_days': snapshot_retention_days,
+        'orphan_file_retention_days': orphan_file_retention_days,
         'partition_strategy': partition_strategy,
         'partition_columns': partition_columns,
         'bucket_count': bucket_count,
@@ -1021,6 +1031,8 @@ def step5_iceberg_settings(migrator):
         "File Format": file_format,
         "Compression": compression,
         "Compaction": "Enabled" if compaction_enabled else "Disabled",
+        "Snapshot Retention": f"{snapshot_retention_days} days",
+        "Orphan File Retention": f"{orphan_file_retention_days} days",
         "Partitioning": f"{len(partition_columns)} columns" if partition_columns else "None",
         "Glue Job": glue_job_name
     }
@@ -1560,6 +1572,15 @@ def step4_direct_iceberg_settings(migrator):
             value=7,
             help="Number of days to retain snapshots"
         )
+        
+        # Orphan file retention
+        orphan_file_retention_days = st.number_input(
+            "Orphan File Retention (Days)",
+            min_value=1,
+            max_value=365,
+            value=7,
+            help="Number of days to retain orphan files before deletion"
+        )
     
     # Additional settings
     st.markdown("#### 🎛️ Additional Configuration")
@@ -1617,6 +1638,7 @@ def step4_direct_iceberg_settings(migrator):
         'compaction_rewrite_delete_files': compaction_rewrite_delete_files,
         'history_retention_days': history_retention_days,
         'snapshot_retention_days': snapshot_retention_days,
+        'orphan_file_retention_days': orphan_file_retention_days,
         'partition_strategy': 'none',  # Will be updated from step 2
         'partition_columns': st.session_state.partition_columns,
         'bucket_count': 10,
@@ -1636,6 +1658,8 @@ def step4_direct_iceberg_settings(migrator):
         "File Format": file_format,
         "Compression": compression,
         "Compaction": "Enabled" if compaction_enabled else "Disabled",
+        "Snapshot Retention": f"{snapshot_retention_days} days",
+        "Orphan File Retention": f"{orphan_file_retention_days} days",
         "Partitioning": f"{len(st.session_state.partition_columns)} columns" if st.session_state.partition_columns else "None",
         "Glue Job": glue_job_name
     }

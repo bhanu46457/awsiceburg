@@ -57,6 +57,7 @@
     "compaction_rewrite_delete_files": true,
     "history_retention_days": 30,
     "snapshot_retention_days": 7,
+    "orphan_file_retention_days": 7,
     "partition_strategy": "month",
     "partition_columns": ["created_at"],
     "bucket_count": 10,
