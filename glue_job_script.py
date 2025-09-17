@@ -104,18 +104,6 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
         # Enable Compaction Optimization
         if iceberg_settings.get('compaction_enabled', True):
             print("Creating compaction optimizer...")
-            # Build the main configuration
-            table_optimizer_config = {
-                'enabled': True,
-                'roleArn': role_arn
-            }
-            
-            # Add VPC configuration if specified
-            if iceberg_settings.get('vpc_connection_name'):
-                table_optimizer_config['vpcConfiguration'] = {
-                    'glueConnectionName': iceberg_settings.get('vpc_connection_name')
-                }
-            
             # Build compaction configuration
             compaction_config = {
                 'icebergConfiguration': {
@@ -126,15 +114,25 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
             }
             
             try:
+                # Build the complete configuration
+                optimizer_config = {
+                    'enabled': True,
+                    'roleArn': role_arn,
+                    'compactionConfiguration': compaction_config
+                }
+                
+                # Add VPC configuration if specified
+                if iceberg_settings.get('vpc_connection_name'):
+                    optimizer_config['vpcConfiguration'] = {
+                        'glueConnectionName': iceberg_settings.get('vpc_connection_name')
+                    }
+                
                 response = glue_client.create_table_optimizer(
                     CatalogId=catalog_id,
                     DatabaseName=database_name,
                     TableName=table_name,
                     Type='compaction',
-                    TableOptimizerConfiguration={
-                        **table_optimizer_config,
-                        'compactionConfiguration': compaction_config
-                    }
+                    TableOptimizerConfiguration=optimizer_config
                 )
                 optimizers_created.append('COMPACTION')
                 print("✅ Compaction optimizer created successfully")
@@ -154,15 +152,25 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
         }
         
         try:
+            # Build the complete configuration
+            optimizer_config = {
+                'enabled': True,
+                'roleArn': role_arn,
+                'retentionConfiguration': retention_config
+            }
+            
+            # Add VPC configuration if specified
+            if iceberg_settings.get('vpc_connection_name'):
+                optimizer_config['vpcConfiguration'] = {
+                    'glueConnectionName': iceberg_settings.get('vpc_connection_name')
+                }
+            
             response = glue_client.create_table_optimizer(
                 CatalogId=catalog_id,
                 DatabaseName=database_name,
                 TableName=table_name,
                 Type='retention',
-                TableOptimizerConfiguration={
-                    **table_optimizer_config,
-                    'retentionConfiguration': retention_config
-                }
+                TableOptimizerConfiguration=optimizer_config
             )
             optimizers_created.append('RETENTION')
             print("✅ Snapshot retention optimizer created successfully")
@@ -187,15 +195,25 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
         }
         
         try:
+            # Build the complete configuration
+            optimizer_config = {
+                'enabled': True,
+                'roleArn': role_arn,
+                'orphanFileDeletionConfiguration': orphan_file_deletion_config
+            }
+            
+            # Add VPC configuration if specified
+            if iceberg_settings.get('vpc_connection_name'):
+                optimizer_config['vpcConfiguration'] = {
+                    'glueConnectionName': iceberg_settings.get('vpc_connection_name')
+                }
+            
             response = glue_client.create_table_optimizer(
                 CatalogId=catalog_id,
                 DatabaseName=database_name,
                 TableName=table_name,
                 Type='orphan_file_deletion',
-                TableOptimizerConfiguration={
-                    **table_optimizer_config,
-                    'orphanFileDeletionConfiguration': orphan_file_deletion_config
-                }
+                TableOptimizerConfiguration=optimizer_config
             )
             optimizers_created.append('ORPHAN_FILE_DELETION')
             print("✅ Orphan file deletion optimizer created successfully")
