@@ -41,6 +41,111 @@ def load_config_from_s3(s3_path: str) -> dict:
 def create_iceberg_table(spark, config: dict):
     """Create Iceberg table based on configuration"""
     
+    # Check if this is migration or direct creation
+    mode = config.get('mode', 'migration')
+    
+    if mode == 'direct_creation':
+        return create_direct_iceberg_table(spark, config)
+    else:
+        return create_migration_iceberg_table(spark, config)
+
+def create_direct_iceberg_table(spark, config: dict):
+    """Create Iceberg table from scratch based on schema definition"""
+    
+    # Extract configuration
+    schema = config['schema']
+    partitioning = config['partitioning']
+    target_config = config['target']
+    iceberg_settings = config['iceberg_settings']
+    
+    # Set Iceberg catalog properties
+    catalog_name = iceberg_settings.get('catalog_name', 'glue_catalog')
+    warehouse_location = iceberg_settings.get('warehouse_location')
+    
+    # Configure Spark for Iceberg
+    spark.conf.set(f"spark.sql.catalog.{catalog_name}", "org.apache.iceberg.spark.SparkCatalog")
+    spark.conf.set(f"spark.sql.catalog.{catalog_name}.warehouse", warehouse_location)
+    spark.conf.set(f"spark.sql.catalog.{catalog_name}.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog")
+    spark.conf.set(f"spark.sql.catalog.{catalog_name}.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
+    
+    # Get target configuration
+    target_database = target_config['target_database']
+    target_table = target_config['target_table']
+    target_s3_location = target_config['target_s3_location']
+    
+    # Create target database if it doesn't exist
+    print(f"Creating target database: {target_database}")
+    spark.sql(f"CREATE DATABASE IF NOT EXISTS {catalog_name}.{target_database}")
+    
+    # Configure Iceberg table properties
+    table_properties = {
+        'write.format.default': iceberg_settings.get('file_format', 'parquet'),
+        'write.target-file-size-bytes': str(iceberg_settings.get('target_file_size', 128) * 1024 * 1024),
+        'write.distribution-mode': 'hash',
+        'write.parquet.compression-codec': iceberg_settings.get('compression', 'snappy'),
+        'history.expire.max-snapshot-age-ms': str(iceberg_settings.get('history_retention_days', 30) * 24 * 60 * 60 * 1000),
+        'snapshot.time-retention.millis': str(iceberg_settings.get('snapshot_retention_days', 7) * 24 * 60 * 60 * 1000)
+    }
+    
+    # Add compaction properties if enabled
+    if iceberg_settings.get('compaction_enabled', True):
+        table_properties.update({
+            'write.merge.mode': 'copy-on-write',
+            'write.merge.distribution-mode': 'hash',
+            'write.target-file-size-bytes': str(iceberg_settings.get('compaction_target_size', 512) * 1024 * 1024),
+            'write.merge.mode': 'copy-on-write'
+        })
+    
+    # Create table properties string
+    properties_string = ', '.join([f"'{k}' = '{v}'" for k, v in table_properties.items()])
+    
+    # Create column definitions
+    columns = []
+    for col in schema:
+        col_name = col['name']
+        col_type = col['type']
+        nullable = "NULL" if col.get('nullable', True) else "NOT NULL"
+        comment = f" COMMENT '{col.get('comment', '')}'" if col.get('comment') else ""
+        columns.append(f"{col_name} {col_type} {nullable}{comment}")
+    
+    columns_string = ', '.join(columns)
+    
+    # Add partitioning if configured
+    partition_clause = ""
+    if partitioning.get('strategy') != 'none' and partitioning.get('columns'):
+        partition_columns = partitioning['columns']
+        if partitioning['strategy'] == 'bucket':
+            bucket_count = iceberg_settings.get('bucket_count', 10)
+            partition_clause = f" PARTITIONED BY BUCKET {bucket_count} ({', '.join(partition_columns)})"
+        elif partitioning['strategy'] == 'truncate':
+            truncate_width = iceberg_settings.get('truncate_width', 10)
+            partition_clause = f" PARTITIONED BY TRUNCATE {truncate_width} ({', '.join(partition_columns)})"
+        elif partitioning['strategy'] in ['year', 'month', 'day', 'hour']:
+            partition_clause = f" PARTITIONED BY {partitioning['strategy'].upper()} ({', '.join(partition_columns)})"
+        else:  # identity
+            partition_clause = f" PARTITIONED BY ({', '.join(partition_columns)})"
+    
+    # Create table SQL
+    create_table_sql = f"""
+    CREATE TABLE {catalog_name}.{target_database}.{target_table} (
+        {columns_string}
+    ) USING iceberg
+    LOCATION '{target_s3_location}'
+    TBLPROPERTIES ({properties_string}){partition_clause}
+    """
+    
+    print("Executing table creation SQL:")
+    print(create_table_sql)
+    
+    spark.sql(create_table_sql)
+    
+    print(f"Successfully created Iceberg table: {target_database}.{target_table}")
+    
+    return True
+
+def create_migration_iceberg_table(spark, config: dict):
+    """Create Iceberg table by migrating from existing Glue table"""
+    
     # Extract configuration
     source_config = config['source']
     target_config = config['target']

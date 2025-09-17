@@ -1,0 +1,71 @@
+{
+  "mode": "direct_creation",
+  "schema": [
+    {
+      "name": "id",
+      "type": "int",
+      "nullable": false,
+      "comment": "Primary key"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "nullable": true,
+      "comment": "Customer name"
+    },
+    {
+      "name": "email",
+      "type": "string",
+      "nullable": true,
+      "comment": "Email address"
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp",
+      "nullable": false,
+      "comment": "Creation timestamp"
+    },
+    {
+      "name": "is_active",
+      "type": "boolean",
+      "nullable": false,
+      "comment": "Active status"
+    }
+  ],
+  "partitioning": {
+    "strategy": "month",
+    "columns": ["created_at"]
+  },
+  "target": {
+    "target_database": "my_iceberg_database",
+    "target_table": "my_iceberg_table",
+    "target_s3_location": "s3://your-bucket/iceberg-tables/my_iceberg_database/my_iceberg_table/",
+    "table_description": "Custom Iceberg table created with AWS Glue 5.0",
+    "owner": "data-engineering"
+  },
+  "iceberg_settings": {
+    "file_format": "parquet",
+    "compression": "snappy",
+    "target_file_size": 128,
+    "write_target_file_size": 64,
+    "compaction_enabled": true,
+    "compaction_target_size": 512,
+    "compaction_min_file_count": 5,
+    "compaction_max_file_size": 1024,
+    "compaction_strategy": "binpack",
+    "compaction_rewrite_all": false,
+    "compaction_rewrite_delete_files": true,
+    "history_retention_days": 30,
+    "snapshot_retention_days": 7,
+    "partition_strategy": "month",
+    "partition_columns": ["created_at"],
+    "bucket_count": 10,
+    "truncate_width": 10,
+    "catalog_name": "glue_catalog",
+    "warehouse_location": "s3://your-bucket/warehouse/",
+    "glue_job_name": "iceberg-creation-my_iceberg_table",
+    "config_s3_bucket": "your-config-bucket",
+    "config_s3_key": "configs/iceberg-creation-my_iceberg_table-20231201-120000.json"
+  },
+  "creation_timestamp": "2023-12-01T12:00:00.000Z"
+}
