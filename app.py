@@ -129,39 +129,6 @@ st.markdown("""
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
     
-    .database-list {
-        max-height: 200px;
-        overflow-y: auto;
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        background-color: white;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        position: absolute;
-        width: 100%;
-        z-index: 1000;
-    }
-    
-    .database-item {
-        padding: 0.75rem;
-        cursor: pointer;
-        border-bottom: 1px solid #f0f0f0;
-        color: #262730;
-        transition: background-color 0.2s;
-    }
-    
-    .database-item:hover {
-        background-color: #f8f9fa;
-    }
-    
-    .database-item:last-child {
-        border-bottom: none;
-    }
-    
-    .database-item.selected {
-        background-color: #667eea;
-        color: white;
-    }
-    
     /* Additional text visibility improvements */
     .stTextInput label, .stTextArea label, .stNumberInput label, .stSelectbox label {
         color: #262730 !important;
@@ -477,7 +444,7 @@ def step1_database_table_selection(migrator):
     
     with col1:
         st.markdown("### 🗄️ Select Database")
-        
+
         # Add refresh button
         col_refresh, col_info = st.columns([1, 3])
         with col_refresh:
@@ -485,7 +452,7 @@ def step1_database_table_selection(migrator):
                 st.rerun()
         with col_info:
             st.markdown("Click refresh if databases don't appear")
-        
+
         # Add loading indicator
         with st.spinner("Loading databases..."):
             databases = migrator.get_databases()
@@ -494,7 +461,7 @@ def step1_database_table_selection(migrator):
             # Add search functionality
             search_term = st.text_input(
                 "🔍 Search databases:",
-                placeholder="Type to search databases...",
+                placeholder="Type to search for a database...",
                 key="database_search"
             )
             
@@ -505,43 +472,13 @@ def step1_database_table_selection(migrator):
                 filtered_databases = databases
             
             if filtered_databases:
-                # Show database count
-                st.info(f"Found {len(filtered_databases)} database(s) matching your search")
-                
-                # Create a more user-friendly database selection
-                if len(filtered_databases) <= 20:  # Show dropdown for small lists
-                    selected_db = st.selectbox(
-                        "Choose a database:",
-                        options=filtered_databases,
-                        index=0 if not st.session_state.selected_database else (filtered_databases.index(st.session_state.selected_database) if st.session_state.selected_database in filtered_databases else 0),
-                        key="database_select"
-                    )
-                else:  # Show searchable list for large lists
-                    st.markdown("**Select from the list below:**")
-                    
-                    # Create columns for better layout
-                    cols_per_row = 3
-                    for i in range(0, len(filtered_databases), cols_per_row):
-                        cols = st.columns(cols_per_row)
-                        for j, col in enumerate(cols):
-                            if i + j < len(filtered_databases):
-                                db_name = filtered_databases[i + j]
-                                if col.button(
-                                    f"📁 {db_name}",
-                                    key=f"db_btn_{i+j}",
-                                    use_container_width=True,
-                                    help=f"Select {db_name}"
-                                ):
-                                    selected_db = db_name
-                                    st.session_state.selected_database = selected_db
-                                    st.rerun()
-                    
-                    # Show current selection
-                    if st.session_state.selected_database:
-                        selected_db = st.session_state.selected_database
-                        st.success(f"✅ Selected: **{selected_db}**")
-                    else:
-                        selected_db = None
+                selected_db = st.selectbox(
+                    f"Select from {len(filtered_databases)} matching database(s):",
+                    options=filtered_databases,
+                    index=0 if not st.session_state.selected_database else (filtered_databases.index(st.session_state.selected_database) if st.session_state.selected_database in filtered_databases else 0),
+                    key="database_select",
+                    help="Select a database from the filtered list."
+                )
                 
                 if selected_db:
                     st.session_state.selected_database = selected_db
@@ -557,7 +494,7 @@ def step1_database_table_selection(migrator):
                             # Add table search functionality
                             table_search_term = st.text_input(
                                 "🔍 Search tables:",
-                                placeholder="Type to search tables...",
+                                placeholder="Type to search for a table...",
                                 key="table_search"
                             )
                             
@@ -568,55 +505,21 @@ def step1_database_table_selection(migrator):
                                 filtered_tables = tables
                             
                             if filtered_tables:
-                                st.info(f"Found {len(filtered_tables)} table(s) matching your search")
-                                
-                                if len(filtered_tables) <= 20:  # Show dropdown for small lists
-                                    selected_table = st.selectbox(
-                                        "Choose a table:",
-                                        options=filtered_tables,
-                                        index=0 if not st.session_state.selected_table else (filtered_tables.index(st.session_state.selected_table) if st.session_state.selected_table in filtered_tables else 0),
-                                        key="table_select"
-                                    )
-                                else:  # Show searchable list for large lists
-                                    st.markdown("**Select from the list below:**")
-                                    
-                                    # Create columns for better layout
-                                    cols_per_row = 2
-                                    for i in range(0, len(filtered_tables), cols_per_row):
-                                        cols = st.columns(cols_per_row)
-                                        for j, col in enumerate(cols):
-                                            if i + j < len(filtered_tables):
-                                                table_name = filtered_tables[i + j]
-                                                if col.button(
-                                                    f"📄 {table_name}",
-                                                    key=f"table_btn_{i+j}",
-                                                    use_container_width=True,
-                                                    help=f"Select {table_name}"
-                                                ):
-                                                    selected_table = table_name
-                                                    st.session_state.selected_table = selected_table
-                                                    st.rerun()
-                                    
-                                    # Show current selection
-                                    if st.session_state.selected_table:
-                                        selected_table = st.session_state.selected_table
-                                        st.success(f"✅ Selected: **{selected_table}**")
-                                    else:
-                                        selected_table = None
+                                selected_table = st.selectbox(
+                                    f"Select from {len(filtered_tables)} matching table(s):",
+                                    options=filtered_tables,
+                                    index=0 if not st.session_state.selected_table else (filtered_tables.index(st.session_state.selected_table) if st.session_state.selected_table in filtered_tables else 0),
+                                    key="table_select",
+                                    help="Select a table from the filtered list."
+                                )
                                 
                                 if selected_table:
                                     st.session_state.selected_table = selected_table
                                     
                                     # Show table info
                                     st.markdown("#### 📊 Table Information")
-                                    col_info1, col_info2 = st.columns([3, 1])
-                                    with col_info1:
-                                        st.markdown(f"**Database:** {selected_db}")
-                                        st.markdown(f"**Table:** {selected_table}")
-                                    with col_info2:
-                                        if st.button("❌ Clear", help="Clear selection"):
-                                            st.session_state.selected_table = None
-                                            st.rerun()
+                                    st.markdown(f"**Database:** {selected_db}")
+                                    st.markdown(f"**Table:** {selected_table}")
                                     
                                     if st.button("🔍 Analyze Table", type="primary", use_container_width=True):
                                         with st.spinner("Fetching table metadata..."):
