@@ -104,23 +104,26 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
         # Enable Compaction Optimization
         if iceberg_settings.get('compaction_enabled', True):
             print("Creating compaction optimizer...")
-            compaction_config = {
+            # Build the main configuration
+            table_optimizer_config = {
                 'enabled': True,
-                'roleArn': role_arn,
-                'compactionConfiguration': {
-                    'icebergConfiguration': {
-                        'strategy': iceberg_settings.get('compaction_strategy', 'binpack'),
-                        'minInputFiles': iceberg_settings.get('compaction_min_file_count', 100),
-                        'deleteFileThreshold': iceberg_settings.get('compaction_delete_file_threshold', 1)
-                    }
-                }
+                'roleArn': role_arn
             }
             
             # Add VPC configuration if specified
             if iceberg_settings.get('vpc_connection_name'):
-                compaction_config['vpcConfiguration'] = {
+                table_optimizer_config['vpcConfiguration'] = {
                     'glueConnectionName': iceberg_settings.get('vpc_connection_name')
                 }
+            
+            # Build compaction configuration
+            compaction_config = {
+                'icebergConfiguration': {
+                    'strategy': iceberg_settings.get('compaction_strategy', 'binpack'),
+                    'minInputFiles': iceberg_settings.get('compaction_min_file_count', 100),
+                    'deleteFileThreshold': iceberg_settings.get('compaction_delete_file_threshold', 1)
+                }
+            }
             
             try:
                 response = glue_client.create_table_optimizer(
@@ -128,7 +131,10 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
                     DatabaseName=database_name,
                     TableName=table_name,
                     Type='compaction',
-                    TableOptimizerConfiguration=compaction_config
+                    TableOptimizerConfiguration={
+                        **table_optimizer_config,
+                        'compactionConfiguration': compaction_config
+                    }
                 )
                 optimizers_created.append('COMPACTION')
                 print("✅ Compaction optimizer created successfully")
@@ -137,24 +143,15 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
         
         # Enable Snapshot Retention Optimization
         print("Creating snapshot retention optimizer...")
+        # Build retention configuration
         retention_config = {
-            'enabled': True,
-            'roleArn': role_arn,
-            'retentionConfiguration': {
-                'icebergConfiguration': {
-                    'snapshotRetentionPeriodInDays': iceberg_settings.get('snapshot_retention_days', 5),
-                    'numberOfSnapshotsToRetain': iceberg_settings.get('number_of_snapshots_to_retain', 1),
-                    'cleanExpiredFiles': iceberg_settings.get('clean_expired_files', True),
-                    'runRateInHours': iceberg_settings.get('retention_run_rate_hours', 24)
-                }
+            'icebergConfiguration': {
+                'snapshotRetentionPeriodInDays': iceberg_settings.get('snapshot_retention_days', 5),
+                'numberOfSnapshotsToRetain': iceberg_settings.get('number_of_snapshots_to_retain', 1),
+                'cleanExpiredFiles': iceberg_settings.get('clean_expired_files', True),
+                'runRateInHours': iceberg_settings.get('retention_run_rate_hours', 24)
             }
         }
-        
-        # Add VPC configuration if specified
-        if iceberg_settings.get('vpc_connection_name'):
-            retention_config['vpcConfiguration'] = {
-                'glueConnectionName': iceberg_settings.get('vpc_connection_name')
-            }
         
         try:
             response = glue_client.create_table_optimizer(
@@ -162,7 +159,10 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
                 DatabaseName=database_name,
                 TableName=table_name,
                 Type='retention',
-                TableOptimizerConfiguration=retention_config
+                TableOptimizerConfiguration={
+                    **table_optimizer_config,
+                    'retentionConfiguration': retention_config
+                }
             )
             optimizers_created.append('RETENTION')
             print("✅ Snapshot retention optimizer created successfully")
@@ -183,18 +183,8 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
             orphan_file_config['location'] = orphan_file_location
         
         orphan_file_deletion_config = {
-            'enabled': True,
-            'roleArn': role_arn,
-            'orphanFileDeletionConfiguration': {
-                'icebergConfiguration': orphan_file_config
-            }
+            'icebergConfiguration': orphan_file_config
         }
-        
-        # Add VPC configuration if specified
-        if iceberg_settings.get('vpc_connection_name'):
-            orphan_file_deletion_config['vpcConfiguration'] = {
-                'glueConnectionName': iceberg_settings.get('vpc_connection_name')
-            }
         
         try:
             response = glue_client.create_table_optimizer(
@@ -202,7 +192,10 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
                 DatabaseName=database_name,
                 TableName=table_name,
                 Type='orphan_file_deletion',
-                TableOptimizerConfiguration=orphan_file_deletion_config
+                TableOptimizerConfiguration={
+                    **table_optimizer_config,
+                    'orphanFileDeletionConfiguration': orphan_file_deletion_config
+                }
             )
             optimizers_created.append('ORPHAN_FILE_DELETION')
             print("✅ Orphan file deletion optimizer created successfully")
