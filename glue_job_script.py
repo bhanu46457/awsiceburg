@@ -53,14 +53,12 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
     
     try:
         # Get the catalog ID (account ID)
-        sts_client = boto3.client('sts')
         catalog_id = sts_client.get_caller_identity()['Account']
         
         # Get the IAM role ARN from the Glue job context
-        # This should be the same role that's running the Glue job
         role_arn = f"arn:aws:iam::{catalog_id}:role/GlueServiceRole"
         
-        # Alternative: Try to get the role from the job context
+        # Try to get the role from the job context
         try:
             job_name = job.getJobName() if hasattr(job, 'getJobName') else None
             if job_name:
@@ -75,15 +73,15 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
         if iceberg_settings.get('compaction_enabled', True):
             print("Creating compaction optimizer...")
             compaction_config = {
-                'Enabled': True,
-                'RoleArn': role_arn,
-                'Configuration': {
-                    'Strategy': iceberg_settings.get('compaction_strategy', 'binpack'),
-                    'MinInputFiles': iceberg_settings.get('compaction_min_file_count', 5),
-                    'TargetFileSizeBytes': iceberg_settings.get('compaction_target_size', 512) * 1024 * 1024,
-                    'MaxFileSizeBytes': iceberg_settings.get('compaction_max_file_size', 1024) * 1024 * 1024,
-                    'RewriteAllFiles': iceberg_settings.get('compaction_rewrite_all', False),
-                    'RewriteDeleteFiles': iceberg_settings.get('compaction_rewrite_delete_files', True)
+                'enabled': True,
+                'roleArn': role_arn,
+                'compactionConfiguration': {
+                    'strategy': iceberg_settings.get('compaction_strategy', 'binpack'),
+                    'minInputFiles': iceberg_settings.get('compaction_min_file_count', 5),
+                    'targetFileSizeBytes': iceberg_settings.get('compaction_target_size', 512) * 1024 * 1024,
+                    'maxFileSizeBytes': iceberg_settings.get('compaction_max_file_size', 1024) * 1024 * 1024,
+                    'rewriteAllFiles': iceberg_settings.get('compaction_rewrite_all', False),
+                    'rewriteDeleteFiles': iceberg_settings.get('compaction_rewrite_delete_files', True)
                 }
             }
             
@@ -103,11 +101,11 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
         # Enable Snapshot Retention Optimization
         print("Creating snapshot retention optimizer...")
         retention_config = {
-            'Enabled': True,
-            'RoleArn': role_arn,
-            'Configuration': {
-                'RetentionDays': iceberg_settings.get('snapshot_retention_days', 7),
-                'MaxSnapshots': 100
+            'enabled': True,
+            'roleArn': role_arn,
+            'retentionConfiguration': {
+                'retentionDays': iceberg_settings.get('snapshot_retention_days', 7),
+                'maxSnapshots': 100
             }
         }
         
@@ -127,11 +125,11 @@ def enable_table_optimizations(database_name: str, table_name: str, iceberg_sett
         # Enable Orphan File Deletion Optimization
         print("Creating orphan file deletion optimizer...")
         orphan_file_deletion_config = {
-            'Enabled': True,
-            'RoleArn': role_arn,
-            'Configuration': {
-                'RetentionDays': iceberg_settings.get('orphan_file_retention_days', 7),
-                'MaxFileAgeDays': 30
+            'enabled': True,
+            'roleArn': role_arn,
+            'orphanFileDeletionConfiguration': {
+                'retentionDays': iceberg_settings.get('orphan_file_retention_days', 7),
+                'maxFileAgeDays': 30
             }
         }
         
@@ -163,36 +161,41 @@ def verify_optimization_status(database_name: str, table_name: str):
     
     try:
         # Get the catalog ID
-        sts_client = boto3.client('sts')
         catalog_id = sts_client.get_caller_identity()['Account']
         
-        # List table optimizers for this table
-        response = glue_client.list_table_optimizers(
-            CatalogId=catalog_id,
-            DatabaseName=database_name,
-            TableName=table_name
-        )
-        
-        optimizers = response.get('TableOptimizers', [])
+        # Check each optimizer type individually since list_table_optimizers doesn't exist
+        optimizer_types = ['COMPACTION', 'RETENTION', 'ORPHAN_FILE_DELETION']
+        optimizer_status = {}
         
         print("Table Optimizers Status:")
-        if not optimizers:
-            print("  ❌ No table optimizers found")
-            return {}
         
-        optimizer_status = {}
-        for optimizer in optimizers:
-            optimizer_type = optimizer.get('Type', 'UNKNOWN')
-            status = optimizer.get('Status', 'UNKNOWN')
-            enabled = optimizer.get('Enabled', False)
-            
-            status_icon = "✅" if enabled and status == 'ACTIVE' else "❌"
-            print(f"  {status_icon} {optimizer_type}: {status} (Enabled: {enabled})")
-            
-            optimizer_status[optimizer_type.lower()] = {
-                'enabled': enabled,
-                'status': status
-            }
+        for optimizer_type in optimizer_types:
+            try:
+                response = glue_client.get_table_optimizer(
+                    CatalogId=catalog_id,
+                    DatabaseName=database_name,
+                    TableName=table_name,
+                    Type=optimizer_type
+                )
+                
+                optimizer = response.get('TableOptimizer', {})
+                status = optimizer.get('Status', 'UNKNOWN')
+                enabled = optimizer.get('Enabled', False)
+                
+                status_icon = "✅" if enabled and status == 'ACTIVE' else "❌"
+                print(f"  {status_icon} {optimizer_type}: {status} (Enabled: {enabled})")
+                
+                optimizer_status[optimizer_type.lower()] = {
+                    'enabled': enabled,
+                    'status': status
+                }
+                
+            except Exception as e:
+                print(f"  ❌ {optimizer_type}: Not found or error - {str(e)}")
+                optimizer_status[optimizer_type.lower()] = {
+                    'enabled': False,
+                    'status': 'NOT_FOUND'
+                }
         
         return optimizer_status
         
@@ -208,57 +211,44 @@ def monitor_optimization_jobs(database_name: str, table_name: str):
     
     try:
         # Get the catalog ID
-        sts_client = boto3.client('sts')
         catalog_id = sts_client.get_caller_identity()['Account']
         
-        # List table optimizers for this table
-        response = glue_client.list_table_optimizers(
-            CatalogId=catalog_id,
-            DatabaseName=database_name,
-            TableName=table_name
-        )
+        # Check each optimizer type individually
+        optimizer_types = ['COMPACTION', 'RETENTION', 'ORPHAN_FILE_DELETION']
+        found_optimizers = []
         
-        optimizers = response.get('TableOptimizers', [])
+        print(f"Checking {len(optimizer_types)} optimizer types:")
         
-        if not optimizers:
-            print("No table optimizers found for this table")
-            return []
-        
-        print(f"Found {len(optimizers)} table optimizers:")
-        
-        for optimizer in optimizers:
-            optimizer_type = optimizer.get('Type', 'UNKNOWN')
-            status = optimizer.get('Status', 'UNKNOWN')
-            enabled = optimizer.get('Enabled', False)
-            
-            print(f"  📊 {optimizer_type}:")
-            print(f"    Status: {status}")
-            print(f"    Enabled: {enabled}")
-            
-            # Get optimizer runs if available
+        for optimizer_type in optimizer_types:
             try:
-                runs_response = glue_client.list_table_optimizer_runs(
+                response = glue_client.get_table_optimizer(
                     CatalogId=catalog_id,
                     DatabaseName=database_name,
                     TableName=table_name,
                     Type=optimizer_type
                 )
                 
-                runs = runs_response.get('TableOptimizerRuns', [])
-                if runs:
-                    print(f"    Recent runs ({len(runs)}):")
-                    for run in runs[:3]:  # Show last 3 runs
-                        run_status = run.get('Status', 'UNKNOWN')
-                        start_time = run.get('StartedOn', 'N/A')
-                        end_time = run.get('CompletedOn', 'N/A')
-                        print(f"      - Status: {run_status}, Started: {start_time}, Completed: {end_time}")
-                else:
-                    print(f"    No runs found for {optimizer_type}")
+                optimizer = response.get('TableOptimizer', {})
+                status = optimizer.get('Status', 'UNKNOWN')
+                enabled = optimizer.get('Enabled', False)
+                
+                print(f"  📊 {optimizer_type}:")
+                print(f"    Status: {status}")
+                print(f"    Enabled: {enabled}")
+                
+                # Note: list_table_optimizer_runs doesn't exist in the current API
+                # We can only get the optimizer status, not individual runs
+                print(f"    Note: Individual run history not available in current API")
+                
+                found_optimizers.append(optimizer)
                     
             except Exception as e:
-                print(f"    Could not retrieve runs for {optimizer_type}: {str(e)}")
+                print(f"  ❌ {optimizer_type}: Not found or error - {str(e)}")
         
-        return optimizers
+        if not found_optimizers:
+            print("No table optimizers found for this table")
+        
+        return found_optimizers
         
     except Exception as e:
         print(f"Error monitoring optimization jobs: {str(e)}")
@@ -271,18 +261,30 @@ def check_existing_optimizers(database_name: str, table_name: str):
     try:
         catalog_id = sts_client.get_caller_identity()['Account']
         
-        response = glue_client.list_table_optimizers(
-            CatalogId=catalog_id,
-            DatabaseName=database_name,
-            TableName=table_name
-        )
+        # Check each optimizer type individually since list_table_optimizers doesn't exist
+        optimizer_types = ['COMPACTION', 'RETENTION', 'ORPHAN_FILE_DELETION']
+        existing_optimizers = []
         
-        existing_optimizers = response.get('TableOptimizers', [])
+        for optimizer_type in optimizer_types:
+            try:
+                response = glue_client.get_table_optimizer(
+                    CatalogId=catalog_id,
+                    DatabaseName=database_name,
+                    TableName=table_name,
+                    Type=optimizer_type
+                )
+                
+                optimizer = response.get('TableOptimizer', {})
+                if optimizer:
+                    existing_optimizers.append(optimizer)
+                    print(f"  - {optimizer_type}: {optimizer.get('Status', 'UNKNOWN')}")
+                    
+            except Exception as e:
+                # Optimizer doesn't exist, which is fine
+                pass
         
         if existing_optimizers:
             print(f"Found {len(existing_optimizers)} existing optimizers:")
-            for optimizer in existing_optimizers:
-                print(f"  - {optimizer.get('Type', 'UNKNOWN')}: {optimizer.get('Status', 'UNKNOWN')}")
             return existing_optimizers
         else:
             print("No existing optimizers found")
@@ -599,3 +601,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
