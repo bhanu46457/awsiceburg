@@ -1,0 +1,85 @@
+{
+  "source": {
+    "database": "your_source_database",
+    "table": "your_source_table",
+    "metadata": {
+      "s3_location": "s3://your-bucket/source-data/",
+      "input_format": "org.apache.hadoop.mapred.TextInputFormat",
+      "output_format": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+      "serde_info": {
+        "SerializationLibrary": "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+        "Parameters": {
+          "field.delim": ","
+        }
+      },
+      "columns": [
+        {
+          "Name": "id",
+          "Type": "int",
+          "Comment": "Primary key"
+        },
+        {
+          "Name": "name",
+          "Type": "string",
+          "Comment": "Customer name"
+        },
+        {
+          "Name": "email",
+          "Type": "string",
+          "Comment": "Email address"
+        },
+        {
+          "Name": "created_date",
+          "Type": "timestamp",
+          "Comment": "Creation timestamp"
+        }
+      ],
+      "partition_keys": [],
+      "table_type": "EXTERNAL_TABLE",
+      "parameters": {},
+      "create_time": "2023-01-01T00:00:00Z",
+      "update_time": "2023-01-01T00:00:00Z"
+    }
+  },
+  "target": {
+    "target_database": "your_target_database_iceberg",
+    "target_table": "your_target_table_iceberg",
+    "target_s3_location": "s3://your-bucket/iceberg-tables/your_target_database/your_target_table/",
+    "table_description": "Migrated Iceberg table from your_source_database.your_source_table",
+    "owner": "data-engineering"
+  },
+  "data_type_mapping": {
+    "id": {
+      "glue_type": "int",
+      "iceberg_type": "int"
+    },
+    "name": {
+      "glue_type": "string",
+      "iceberg_type": "string"
+    },
+    "email": {
+      "glue_type": "string",
+      "iceberg_type": "string"
+    },
+    "created_date": {
+      "glue_type": "timestamp",
+      "iceberg_type": "timestamp"
+    }
+  },
+  "iceberg_settings": {
+    "file_format": "parquet",
+    "compression": "snappy",
+    "target_file_size": 128,
+    "write_target_file_size": 64,
+    "compaction_enabled": true,
+    "compaction_target_size": 512,
+    "history_retention_days": 30,
+    "snapshot_retention_days": 7,
+    "catalog_name": "glue_catalog",
+    "warehouse_location": "s3://your-bucket/warehouse/",
+    "glue_job_name": "iceberg-migration-your_table",
+    "config_s3_bucket": "your-config-bucket",
+    "config_s3_key": "configs/iceberg-migration-your_table-20231201-120000.json"
+  },
+  "migration_timestamp": "2023-12-01T12:00:00.000Z"
+}
