@@ -72,11 +72,156 @@ st.markdown("""
     .stSelectbox > div > div {
         background-color: #f0f2f6;
         border-radius: 5px;
+        color: #262730 !important;
+    }
+    
+    .stSelectbox > div > div > div {
+        color: #262730 !important;
     }
     
     .stTextInput > div > div > input {
         background-color: #f0f2f6;
         border-radius: 5px;
+        color: #262730 !important;
+    }
+    
+    .stTextArea > div > div > textarea {
+        background-color: #f0f2f6;
+        border-radius: 5px;
+        color: #262730 !important;
+    }
+    
+    .stNumberInput > div > div > input {
+        background-color: #f0f2f6;
+        border-radius: 5px;
+        color: #262730 !important;
+    }
+    
+    .stMultiSelect > div > div {
+        background-color: #f0f2f6;
+        border-radius: 5px;
+        color: #262730 !important;
+    }
+    
+    .stMultiSelect > div > div > div {
+        color: #262730 !important;
+    }
+    
+    /* Search box styling */
+    .search-container {
+        position: relative;
+        margin-bottom: 1rem;
+    }
+    
+    .search-input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        background-color: #f8f9fa;
+        color: #262730;
+    }
+    
+    .search-input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .database-list {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        background-color: white;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        position: absolute;
+        width: 100%;
+        z-index: 1000;
+    }
+    
+    .database-item {
+        padding: 0.75rem;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+        color: #262730;
+        transition: background-color 0.2s;
+    }
+    
+    .database-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .database-item:last-child {
+        border-bottom: none;
+    }
+    
+    .database-item.selected {
+        background-color: #667eea;
+        color: white;
+    }
+    
+    /* Additional text visibility improvements */
+    .stTextInput label, .stTextArea label, .stNumberInput label, .stSelectbox label {
+        color: #262730 !important;
+        font-weight: 600;
+    }
+    
+    .stTextInput input, .stTextArea textarea, .stNumberInput input {
+        color: #262730 !important;
+        font-weight: 500;
+    }
+    
+    .stSelectbox select, .stSelectbox div {
+        color: #262730 !important;
+        font-weight: 500;
+    }
+    
+    .stMultiSelect label {
+        color: #262730 !important;
+        font-weight: 600;
+    }
+    
+    .stMultiSelect div {
+        color: #262730 !important;
+    }
+    
+    /* Placeholder text styling */
+    .stTextInput input::placeholder, .stTextArea textarea::placeholder {
+        color: #666 !important;
+        opacity: 0.8;
+    }
+    
+    /* Button improvements */
+    .stButton > button {
+        color: white !important;
+        font-weight: 600;
+    }
+    
+    /* Info boxes */
+    .stInfo {
+        background-color: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        color: #1565c0;
+    }
+    
+    .stSuccess {
+        background-color: #e8f5e8;
+        border-left: 4px solid #4caf50;
+        color: #2e7d32;
+    }
+    
+    .stWarning {
+        background-color: #fff3e0;
+        border-left: 4px solid #ff9800;
+        color: #f57c00;
+    }
+    
+    .stError {
+        background-color: #ffebee;
+        border-left: 4px solid #f44336;
+        color: #c62828;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -332,41 +477,158 @@ def step1_database_table_selection(migrator):
     
     with col1:
         st.markdown("### 🗄️ Select Database")
-        databases = migrator.get_databases()
+        
+        # Add refresh button
+        col_refresh, col_info = st.columns([1, 3])
+        with col_refresh:
+            if st.button("🔄 Refresh", help="Refresh database list"):
+                st.rerun()
+        with col_info:
+            st.markdown("Click refresh if databases don't appear")
+        
+        # Add loading indicator
+        with st.spinner("Loading databases..."):
+            databases = migrator.get_databases()
         
         if databases:
-            selected_db = st.selectbox(
-                "Choose a database:",
-                options=databases,
-                index=0 if not st.session_state.selected_database else databases.index(st.session_state.selected_database)
+            # Add search functionality
+            search_term = st.text_input(
+                "🔍 Search databases:",
+                placeholder="Type to search databases...",
+                key="database_search"
             )
-            st.session_state.selected_database = selected_db
             
-            if selected_db:
-                st.markdown(f"**Selected Database:** {selected_db}")
+            # Filter databases based on search term
+            if search_term:
+                filtered_databases = [db for db in databases if search_term.lower() in db.lower()]
+            else:
+                filtered_databases = databases
+            
+            if filtered_databases:
+                # Show database count
+                st.info(f"Found {len(filtered_databases)} database(s) matching your search")
                 
-                with col2:
-                    st.markdown("### 📋 Select Table")
-                    tables = migrator.get_tables(selected_db)
+                # Create a more user-friendly database selection
+                if len(filtered_databases) <= 20:  # Show dropdown for small lists
+                    selected_db = st.selectbox(
+                        "Choose a database:",
+                        options=filtered_databases,
+                        index=0 if not st.session_state.selected_database else (filtered_databases.index(st.session_state.selected_database) if st.session_state.selected_database in filtered_databases else 0),
+                        key="database_select"
+                    )
+                else:  # Show searchable list for large lists
+                    st.markdown("**Select from the list below:**")
                     
-                    if tables:
-                        selected_table = st.selectbox(
-                            "Choose a table:",
-                            options=tables,
-                            index=0 if not st.session_state.selected_table else tables.index(st.session_state.selected_table) if st.session_state.selected_table in tables else 0
-                        )
-                        st.session_state.selected_table = selected_table
-                        
-                        if selected_table:
-                            st.markdown(f"**Selected Table:** {selected_table}")
-                            
-                            if st.button("🔍 Analyze Table", type="primary"):
-                                with st.spinner("Fetching table metadata..."):
-                                    st.session_state.table_metadata = migrator.get_table_metadata(selected_db, selected_table)
-                                    st.session_state.step = 2
+                    # Create columns for better layout
+                    cols_per_row = 3
+                    for i in range(0, len(filtered_databases), cols_per_row):
+                        cols = st.columns(cols_per_row)
+                        for j, col in enumerate(cols):
+                            if i + j < len(filtered_databases):
+                                db_name = filtered_databases[i + j]
+                                if col.button(
+                                    f"📁 {db_name}",
+                                    key=f"db_btn_{i+j}",
+                                    use_container_width=True,
+                                    help=f"Select {db_name}"
+                                ):
+                                    selected_db = db_name
+                                    st.session_state.selected_database = selected_db
                                     st.rerun()
+                    
+                    # Show current selection
+                    if st.session_state.selected_database:
+                        selected_db = st.session_state.selected_database
+                        st.success(f"✅ Selected: **{selected_db}**")
                     else:
-                        st.warning("No tables found in the selected database.")
+                        selected_db = None
+                
+                if selected_db:
+                    st.session_state.selected_database = selected_db
+                    
+                    with col2:
+                        st.markdown("### 📋 Select Table")
+                        
+                        # Add loading indicator for tables
+                        with st.spinner(f"Loading tables from {selected_db}..."):
+                            tables = migrator.get_tables(selected_db)
+                        
+                        if tables:
+                            # Add table search functionality
+                            table_search_term = st.text_input(
+                                "🔍 Search tables:",
+                                placeholder="Type to search tables...",
+                                key="table_search"
+                            )
+                            
+                            # Filter tables based on search term
+                            if table_search_term:
+                                filtered_tables = [table for table in tables if table_search_term.lower() in table.lower()]
+                            else:
+                                filtered_tables = tables
+                            
+                            if filtered_tables:
+                                st.info(f"Found {len(filtered_tables)} table(s) matching your search")
+                                
+                                if len(filtered_tables) <= 20:  # Show dropdown for small lists
+                                    selected_table = st.selectbox(
+                                        "Choose a table:",
+                                        options=filtered_tables,
+                                        index=0 if not st.session_state.selected_table else (filtered_tables.index(st.session_state.selected_table) if st.session_state.selected_table in filtered_tables else 0),
+                                        key="table_select"
+                                    )
+                                else:  # Show searchable list for large lists
+                                    st.markdown("**Select from the list below:**")
+                                    
+                                    # Create columns for better layout
+                                    cols_per_row = 2
+                                    for i in range(0, len(filtered_tables), cols_per_row):
+                                        cols = st.columns(cols_per_row)
+                                        for j, col in enumerate(cols):
+                                            if i + j < len(filtered_tables):
+                                                table_name = filtered_tables[i + j]
+                                                if col.button(
+                                                    f"📄 {table_name}",
+                                                    key=f"table_btn_{i+j}",
+                                                    use_container_width=True,
+                                                    help=f"Select {table_name}"
+                                                ):
+                                                    selected_table = table_name
+                                                    st.session_state.selected_table = selected_table
+                                                    st.rerun()
+                                    
+                                    # Show current selection
+                                    if st.session_state.selected_table:
+                                        selected_table = st.session_state.selected_table
+                                        st.success(f"✅ Selected: **{selected_table}**")
+                                    else:
+                                        selected_table = None
+                                
+                                if selected_table:
+                                    st.session_state.selected_table = selected_table
+                                    
+                                    # Show table info
+                                    st.markdown("#### 📊 Table Information")
+                                    col_info1, col_info2 = st.columns([3, 1])
+                                    with col_info1:
+                                        st.markdown(f"**Database:** {selected_db}")
+                                        st.markdown(f"**Table:** {selected_table}")
+                                    with col_info2:
+                                        if st.button("❌ Clear", help="Clear selection"):
+                                            st.session_state.selected_table = None
+                                            st.rerun()
+                                    
+                                    if st.button("🔍 Analyze Table", type="primary", use_container_width=True):
+                                        with st.spinner("Fetching table metadata..."):
+                                            st.session_state.table_metadata = migrator.get_table_metadata(selected_db, selected_table)
+                                            st.session_state.step = 2
+                                            st.rerun()
+                            else:
+                                st.warning("No tables found matching your search criteria.")
+                        else:
+                            st.warning("No tables found in the selected database.")
+            else:
+                st.warning("No databases found matching your search criteria.")
         else:
             st.error("No databases found. Please check your AWS credentials and Glue catalog.")
 
@@ -1038,7 +1300,7 @@ def step1_direct_schema_definition(migrator):
         col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
         
         with col1:
-            new_col_name = st.text_input("Column Name", key="new_col_name")
+            new_col_name = st.text_input("Column Name", key="new_col_name", placeholder="Enter column name")
         with col2:
             new_col_type = st.selectbox(
                 "Data Type",
@@ -1048,7 +1310,7 @@ def step1_direct_schema_definition(migrator):
         with col3:
             new_col_nullable = st.checkbox("Nullable", value=True, key="new_col_nullable")
         with col4:
-            new_col_comment = st.text_input("Comment", key="new_col_comment")
+            new_col_comment = st.text_input("Comment", key="new_col_comment", placeholder="Column description")
         
         if st.button("Add Column", key="add_col_btn"):
             if new_col_name and new_col_name not in [col["name"] for col in st.session_state.table_schema]:
